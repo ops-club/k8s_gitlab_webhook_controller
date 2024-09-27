@@ -187,12 +187,14 @@ func processPodImages(pod *v1.Pod) {
             }
             // If there are any new image tags, trigger the webhook
             if len(imageTags) > 0 {
-                webhookParams := []string{
-                    fmt.Sprintf("ref=%s", appBranch),
-                    fmt.Sprintf("token=%s", authToken),
-                    fmt.Sprintf("variables[TRIGGERED_ENV]=%s", appEnv),
-                    fmt.Sprintf("variables[IMAGE_TAG]=%s", imageTags[0]), // Assuming we send the first tag, modify if needed
+                
+                webhookPayload := map[string]string{
+                    "ref": appBranch
+                    "token": authToken,
+                    "variables[TRIGGERED_ENV]": appEnv,
+                    "variables[IMAGE_TAG]": imageTags[0],
                 }
+                
                 envUrl := GetEnvOrDefault("URL", "https://gitlab.com/api/v4")
                 envUrlPath := GetEnvOrDefault("URL_PATH", "/projects/PROJECT_ID/trigger/pipeline")
                 fmt.Println("webhookUrl:", envUrl)
@@ -200,7 +202,7 @@ func processPodImages(pod *v1.Pod) {
                 fmt.Println("PROJECT_ID:", appProjectID)
                 webhookUrl := strings.Replace(fmt.Sprintf(`%s%s`, envUrl, envUrlPath), "PROJECT_ID", appProjectID, -1)
                 fmt.Println("webhookUrl:", webhookUrl)
-                triggerWebhook(webhookUrl, webhookParams)
+                triggerWebhook(webhookUrl, webhookPayload)
             }
         }
     } else {
