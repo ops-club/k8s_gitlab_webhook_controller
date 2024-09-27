@@ -135,7 +135,7 @@ func isPodHealthyWithTimeout(clientset *kubernetes.Clientset, namespace, podName
 }
 
 
-// Fonction pour vérifier si le pod est Healthy (utilisé dans le timeout)
+// Function to check if the pod is healthy
 func isPodHealthy(pod *v1.Pod) bool {
     for _, condition := range pod.Status.Conditions {
         if condition.Type == v1.PodReady && condition.Status == v1.ConditionTrue {
@@ -210,16 +210,6 @@ func shouldTriggerUpdate(pod *v1.Pod) bool {
     fmt.Println("shouldTriggerUpdate:", pod.Annotations["image.update.trigger"])
     if trigger, exists := pod.Annotations["image.update.trigger"]; exists && trigger == "true" {
         return true
-    }
-    return false
-}
-
-// Function to check if the pod is healthy
-func isPodHealthy(pod *v1.Pod) bool {
-    for _, condition := range pod.Status.Conditions {
-        if condition.Type == v1.PodReady && condition.Status == v1.ConditionTrue {
-            return true
-        }
     }
     return false
 }
