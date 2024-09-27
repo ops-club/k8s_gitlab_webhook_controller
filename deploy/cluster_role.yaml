@@ -1,0 +1,27 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k8s-gitlab-webhook-controller-role
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/status", "pods/log"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k8s-gitlab-webhook-controller-binding
+subjects:
+- kind: ServiceAccount
+  name: k8s-gitlab-webhook-controller-sa
+  namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: k8s-gitlab-webhook-controller-role
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-gitlab-webhook-controller
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-gitlab-webhook-controller
+  template:
+    metadata:
+      labels:
+        app: k8s-gitlab-webhook-controller
+    spec:
+      serviceAccountName: k8s-gitlab-webhook-controller-sa
+      containers:
+      - name: k8s-gitlab-webhook-controller
+        image: opsclub/k8s_gitlab_webhook_controller:latest
+        imagePullPolicy: Always
+        env:
+        - name: URL
+          value: "https://gitlab.com/api/v4"
+        - name: URL_PATH
+          value: "/projects/PROJECT_ID/trigger/pipeline"
+        - name: AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: k8s-gitlab-webhook-controller
+              key: gitlab.pipeline.tokens
