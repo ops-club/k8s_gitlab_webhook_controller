@@ -63,44 +63,28 @@ func watchPods(clientset *kubernetes.Clientset) {
                 authToken := os.Getenv("AUTH_TOKEN")
                 imageTags := []string{}
 
-                // Check for image updates and collect tags
-                for _, container := range pod.Spec.Containers {
-                    // Vérifie si le pod a des statuts de conteneurs
-                    if len(pod.Status.ContainerStatuses) > 0 {
-                        for _, container := range pod.Spec.Containers {
-                            // newImage := /container.Image
-                            oldImage := pod.Status.ContainerStatuses[0].Image
+                // Vérifie si le pod a des statuts de conteneurs
+                if len(pod.Status.ContainerStatuses) > 0 {
+                    for _, container := range pod.Spec.Containers {
+                        // newImage := /container.Image
+                        oldImage := pod.Status.ContainerStatuses[0].Image
 
-                            newImageTag := createImageTagKey(newImage)
-                            oldImageTag := createImageTagKey(oldImage)
+                        newImageTag := createImageTagKey(newImage)
+                        oldImageTag := createImageTagKey(oldImage)
 
-                            if newImageTag != oldImageTag {
-                                // Vérifie que la combinaison image + tag n'a pas déjà été traitée
-                                if !isImageTagProcessed(newImageTag) {
-                                    fmt.Printf("Pod %s updated with new image %s in environment %s\n", pod.Name, newImage, acmeEnv)
-                                    imageTags = append(imageTags, newImageTag)
+                        if newImageTag != oldImageTag {
+                            // Vérifie que la combinaison image + tag n'a pas déjà été traitée
+                            if !isImageTagProcessed(newImageTag) {
+                                fmt.Printf("Pod %s updated with new image %s in environment %s\n", pod.Name, newImage, acmeEnv)
+                                imageTags = append(imageTags, newImageTag)
 
-                                    // Marquer cette image + tag comme traitée
-                                    markImageTagAsProcessed(newImageTag)
-                                }
+                                // Marquer cette image + tag comme traitée
+                                markImageTagAsProcessed(newImageTag)
                             }
                         }
-                    } else {
-                        fmt.Printf("No container status available for pod %s\n", pod.Name)
                     }
-
-                   
-
-                    if newImageTag != oldImageTag {
-                        // Ensure we only send one webhook per image+tag combination
-                        if !isImageTagProcessed(newImageTag) {
-                            fmt.Printf("Pod %s updated with new image %s in environment %s\\n", pod.Name, newImage, appEnv)
-                            imageTags = append(imageTags, newImageTag)
-
-                            // Mark this image+tag combination as processed
-                            markImageTagAsProcessed(newImageTag)
-                        }
-                    }
+                } else {
+                    fmt.Printf("No container status available for pod %s\n", pod.Name)
                 }
 
                 // If there are any new image tags, trigger the webhook
