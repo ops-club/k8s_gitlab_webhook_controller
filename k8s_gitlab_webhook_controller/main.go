@@ -54,6 +54,7 @@ func watchPods(clientset *kubernetes.Clientset) {
         fmt.Println("event.Type:", event.Type)
         switch event.Type {
         case watch.Modified:
+            fmt.Println("event Modified: START", event.Type)
             // if shouldTriggerUpdate(pod) && isPodHealthy(pod) {
             if shouldTriggerUpdate(pod) {
                 appEnv := getAnnotationOrDefault(pod.Annotations, "config.app/env", "default")
@@ -134,6 +135,7 @@ func createImageTagKey(image string) string {
 
 // Function to check if the update should trigger based on custom annotation
 func shouldTriggerUpdate(pod *v1.Pod) bool {
+    fmt.Println("shouldTriggerUpdate:", pod.Annotations["image.update.trigger"])
     if trigger, exists := pod.Annotations["image.update.trigger"]; exists && trigger == "true" {
         return true
     }
