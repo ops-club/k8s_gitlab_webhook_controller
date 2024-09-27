@@ -53,7 +53,7 @@ func watchPods(clientset *kubernetes.Clientset) {
         }
         fmt.Println("event.Type:", event.Type)
         switch event.Type {
-        case watch.Modified:
+        case "MODIFIED":
             fmt.Println("event Modified: START", event.Type)
             // if shouldTriggerUpdate(pod) && isPodHealthy(pod) {
             if shouldTriggerUpdate(pod) {
