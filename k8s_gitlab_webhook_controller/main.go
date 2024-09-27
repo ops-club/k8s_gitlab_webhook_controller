@@ -213,7 +213,7 @@ func shouldPodTriggerUpdate(pod *v1.Pod) bool {
     }
     return false
 }
-func shouldDeploymentTriggerUpdate(deployment *v1.Deployment) bool {
+func shouldDeploymentTriggerUpdate(deployment *appsv1.Deployment) bool {
     fmt.Println("shouldTriggerUpdate:", deployment.Annotations["image.update.trigger"])
     if trigger, exists := deployment.Annotations["image.update.trigger"]; exists && trigger == "true" {
         return true
