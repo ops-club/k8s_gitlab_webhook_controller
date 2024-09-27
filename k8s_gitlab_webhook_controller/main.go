@@ -189,7 +189,7 @@ func processPodImages(pod *v1.Pod) {
             if len(imageTags) > 0 {
 
                 webhookPayload := map[string]string{
-                    "ref": appBranch
+                    "ref": appBranch,
                     "token": authToken,
                     "variables[TRIGGERED_ENV]": appEnv,
                     "variables[IMAGE_TAG]": imageTags[0],
