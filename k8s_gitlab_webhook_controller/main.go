@@ -11,6 +11,7 @@ import (
     "sync"
     "k8s.io/client-go/kubernetes"
     "k8s.io/client-go/rest"
+    "k8s.io/apimachinery/pkg/watch"
     v1 "k8s.io/api/core/v1"
     metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -46,13 +47,23 @@ func watchPods(clientset *kubernetes.Clientset) {
     fmt.Println("Watching for pod events...")
 
     for event := range watchInterface.ResultChan() {
+        // Affiche l'événement complet pour debug
+        fmt.Printf("Received event: %v\n", event)
+
         pod, ok := event.Object.(*v1.Pod)
         if !ok {
+            fmt.Println("Event is not a Pod object")
             continue
         }
         fmt.Println("event.Type:", event.Type)
+        // Affiche le pod reçu pour debug
+        fmt.Printf("Pod received: %s in namespace %s\n", pod.Name, pod.Namespace)
+
         switch event.Type {
-        case "MODIFIED":
+        case watch.Added:
+            fmt.Printf("Pod %s added in namespace %s\n", pod.Name, pod.Namespace)
+        
+        case watch.Modified:
             fmt.Println("event Modified: START", event.Type)
             // if shouldTriggerUpdate(pod) && isPodHealthy(pod) {
             if shouldTriggerUpdate(pod) {
@@ -103,6 +114,12 @@ func watchPods(clientset *kubernetes.Clientset) {
                     triggerWebhook(webhookUrl, webhookParams)
                 }
             }
+        
+        case watch.Deleted:
+            fmt.Printf("Pod %s deleted in namespace %s\n", pod.Name, pod.Namespace)
+        default:
+            fmt.Printf("Unknown event type: %v\n", event.Type)
+        
         }
     }
 }
