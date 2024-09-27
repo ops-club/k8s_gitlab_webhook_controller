@@ -187,7 +187,7 @@ func processPodImages(pod *v1.Pod) {
             }
             // If there are any new image tags, trigger the webhook
             if len(imageTags) > 0 {
-                
+
                 webhookPayload := map[string]string{
                     "ref": appBranch
                     "token": authToken,
@@ -348,7 +348,7 @@ func watchDeployments(clientset *kubernetes.Clientset) {
                                 imageTag := extractImageTag(newImage)
                                 // Trigger the webhook
                                 webhookPayload := map[string]string{
-                                    "ref": appBranch
+                                    "ref": appBranch,
                                     "token": authToken,
                                     "variables[TRIGGERED_ENV]": appEnv,
                                     "variables[IMAGE_TAG]": imageTag,
