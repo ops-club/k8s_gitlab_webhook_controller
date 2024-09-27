@@ -64,54 +64,15 @@ func watchPods(clientset *kubernetes.Clientset) {
             fmt.Printf("Pod %s added in namespace %s\n", pod.Name, pod.Namespace)
         
         case watch.Modified:
-            fmt.Println("event Modified: START", event.Type)
-            // if shouldTriggerUpdate(pod) && isPodHealthy(pod) {
+            fmt.Printf("Pod %s modified in namespace %s\n", pod.Name, pod.Namespace)
+            
             if shouldTriggerUpdate(pod) {
-                appEnv := getAnnotationOrDefault(pod.Annotations, "config.app/env", "default")
-                appBranch := getAnnotationOrDefault(pod.Annotations, "config.app/branch", "default")
-                appProjectID := getAnnotationOrDefault(pod.Annotations, "config.app/project-id", "123456")
-                authToken := os.Getenv("AUTH_TOKEN")
-                imageTags := []string{}
-
-                // Vérifie si le pod a des statuts de conteneurs
-                if len(pod.Status.ContainerStatuses) > 0 {
-                    for _, container := range pod.Spec.Containers {
-                        newImage := container.Image
-                        oldImage := pod.Status.ContainerStatuses[0].Image
-
-                        newImageTag := createImageTagKey(newImage)
-                        oldImageTag := createImageTagKey(oldImage)
-
-                        if newImageTag != oldImageTag {
-                            // Vérifie que la combinaison image + tag n'a pas déjà été traitée
-                            if !isImageTagProcessed(newImageTag) {
-                                fmt.Printf("Pod %s updated with new image %s in environment %s\n", pod.Name, newImage, appEnv)
-                                imageTags = append(imageTags, newImageTag)
-
-                                // Marquer cette image + tag comme traitée
-                                markImageTagAsProcessed(newImageTag)
-                            }
-                        }
-                    }
+                // Vérification avec timeout de 70 secondes pour s'assurer que le pod est Healthy
+                if isPodHealthyWithTimeout(clientset, pod.Namespace, pod.Name, 70*time.Second) {
+                    fmt.Printf("Pod %s is healthy in namespace %s\n", pod.Name, pod.Namespace)
+                    processPodImages(pod)
                 } else {
-                    fmt.Printf("No container status available for pod %s\n", pod.Name)
-                }
-
-                // If there are any new image tags, trigger the webhook
-                if len(imageTags) > 0 {
-                    webhookParams := []string{
-                        fmt.Sprintf("ref=%s", appBranch),
-                        fmt.Sprintf("token=%s", authToken),
-                        fmt.Sprintf("variables[TRIGGERED_ENV]=%s", appEnv),
-                        fmt.Sprintf("variables[IMAGE_TAG]=%s", imageTags[0]), // Assuming we send the first tag, modify if needed
-                    }
-                    envUrl := GetEnvOrDefault("URL", "https://gitlab.com/api/v4")
-                    envUrlPath := GetEnvOrDefault("URL_PATH", "/projects/PROJECT_ID/trigger/pipeline")
-                    fmt.Println("webhookUrl:", envUrl)
-                    fmt.Println("webhookUrlPath:", envUrlPath)
-                    fmt.Println("PROJECT_ID:", appProjectID)
-                    webhookUrl := strings.Replace(fmt.Sprintf(`%s%s`, envUrl, envUrlPath), "PROJECT_ID", appProjectID, -1)
-                    triggerWebhook(webhookUrl, webhookParams)
+                    fmt.Printf("Pod %s is not healthy after 70 seconds in namespace %s\n", pod.Name, pod.Namespace)
                 }
             }
         
@@ -141,6 +102,97 @@ func getAnnotationOrDefault(annotations map[string]string, key string, defaultVa
         // return fmt.Sprintf("%v", value)
     }
     return defaultValue
+}
+
+// Fonction pour vérifier si le pod est Healthy avec un timeout maximum
+func isPodHealthyWithTimeout(clientset *kubernetes.Clientset, namespace, podName string, timeout time.Duration) bool {
+    ticker := time.NewTicker(2 * time.Second)
+    defer ticker.Stop()
+
+    timeoutChan := time.After(timeout)
+    for {
+        select {
+        case <-timeoutChan:
+            // Timeout atteint, on considère que le pod n'est pas healthy
+            return false
+        case <-ticker.C:
+            // Vérification régulière du statut Healthy
+            pod, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
+            if err != nil {
+                fmt.Printf("Error retrieving pod %s: %v\n", podName, err)
+                continue
+            }
+
+            if isPodHealthy(pod) {
+                // Pod est Healthy
+                return true
+            }
+
+            fmt.Printf("Waiting for pod %s to be healthy...\n", podName)
+        }
+    }
+}
+
+
+// Fonction pour vérifier si le pod est Healthy (utilisé dans le timeout)
+func isPodHealthy(pod *v1.Pod) bool {
+    for _, condition := range pod.Status.Conditions {
+        if condition.Type == v1.PodReady && condition.Status == v1.ConditionTrue {
+            return true
+        }
+    }
+    return false
+}
+
+// Exemple de traitement des images des pods
+func processPodImages(pod *v1.Pod) {
+    if len(pod.Status.ContainerStatuses) > 0 {
+
+        appEnv := getAnnotationOrDefault(pod.Annotations, "config.app/env", "default")
+        appBranch := getAnnotationOrDefault(pod.Annotations, "config.app/branch", "default")
+        appProjectID := getAnnotationOrDefault(pod.Annotations, "config.app/project-id", "123456")
+        authToken := os.Getenv("AUTH_TOKEN")
+        imageTags := []string{}
+        
+        for _, container := range pod.Spec.Containers {
+            newImage := container.Image
+            oldImage := pod.Status.ContainerStatuses[0].Image
+
+            fmt.Printf("Processing image: %s (new) vs %s (old) in pod %s\n", newImage, oldImage, pod.Name)
+
+            newImageTag := createImageTagKey(newImage)
+            oldImageTag := createImageTagKey(oldImage)
+
+            if newImageTag != oldImageTag {
+                // Vérifie que la combinaison image + tag n'a pas déjà été traitée
+                if !isImageTagProcessed(newImageTag) {
+                    fmt.Printf("Pod %s updated with new image %s in environment %s\n", pod.Name, newImage, appEnv)
+                    imageTags = append(imageTags, newImageTag)
+
+                    // Marquer cette image + tag comme traitée
+                    markImageTagAsProcessed(newImageTag)
+                }
+            }
+            // If there are any new image tags, trigger the webhook
+            if len(imageTags) > 0 {
+                webhookParams := []string{
+                    fmt.Sprintf("ref=%s", appBranch),
+                    fmt.Sprintf("token=%s", authToken),
+                    fmt.Sprintf("variables[TRIGGERED_ENV]=%s", appEnv),
+                    fmt.Sprintf("variables[IMAGE_TAG]=%s", imageTags[0]), // Assuming we send the first tag, modify if needed
+                }
+                envUrl := GetEnvOrDefault("URL", "https://gitlab.com/api/v4")
+                envUrlPath := GetEnvOrDefault("URL_PATH", "/projects/PROJECT_ID/trigger/pipeline")
+                fmt.Println("webhookUrl:", envUrl)
+                fmt.Println("webhookUrlPath:", envUrlPath)
+                fmt.Println("PROJECT_ID:", appProjectID)
+                webhookUrl := strings.Replace(fmt.Sprintf(`%s%s`, envUrl, envUrlPath), "PROJECT_ID", appProjectID, -1)
+                triggerWebhook(webhookUrl, webhookParams)
+            }
+        }
+    } else {
+        fmt.Printf("No container status available for pod %s\n", pod.Name)
+    }
 }
 
 // Function to create a unique key combining the image name and tag
