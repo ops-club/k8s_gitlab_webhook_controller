@@ -291,7 +291,7 @@ func triggerWebhook(webhookUrl string, webhookPayload map[string]string) {
     bodyString := string(bodyBytes)
     
     // Print the response status code and the body of the response
-    fmt.Printf("Webhook triggered with parameters: %v\n", webhookParams)
+    fmt.Printf("Webhook triggered with parameters: %v\n", webhookPayload)
     fmt.Printf("Response Status Code: %d\n", resp.StatusCode)
     fmt.Printf("Response Body: %s\n", bodyString)
 }
