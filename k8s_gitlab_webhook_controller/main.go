@@ -66,7 +66,7 @@ func watchPods(clientset *kubernetes.Clientset) {
                 // Vérifie si le pod a des statuts de conteneurs
                 if len(pod.Status.ContainerStatuses) > 0 {
                     for _, container := range pod.Spec.Containers {
-                        // newImage := /container.Image
+                        newImage := container.Image
                         oldImage := pod.Status.ContainerStatuses[0].Image
 
                         newImageTag := createImageTagKey(newImage)
