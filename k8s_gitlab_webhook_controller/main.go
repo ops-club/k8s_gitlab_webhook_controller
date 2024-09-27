@@ -5,6 +5,7 @@ import (
     "fmt"
     "net/http"
     "os"
+    "io"
     "strings"
     "bytes"
     "context"
@@ -270,7 +271,7 @@ func triggerWebhook(webhookUrl string, webhookParams []string) {
     // Envoyer la requête HTTP
     client := &http.Client{}
     resp, err := client.Do(req)
-    
+
     if err != nil {
         fmt.Printf("Error triggering webhook: %v\n", err)
         return
