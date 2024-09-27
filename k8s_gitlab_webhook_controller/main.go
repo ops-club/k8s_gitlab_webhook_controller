@@ -51,10 +51,11 @@ func watchPods(clientset *kubernetes.Clientset) {
         if !ok {
             continue
         }
-
+        fmt.Println("event.Type:", event.Type)
         switch event.Type {
         case watch.Modified:
-            if shouldTriggerUpdate(pod) && isPodHealthy(pod) {
+            // if shouldTriggerUpdate(pod) && isPodHealthy(pod) {
+            if shouldTriggerUpdate(pod) {
                 appEnv := getAnnotationOrDefault(pod.Annotations, "config.app/env", "default")
                 appBranch := getAnnotationOrDefault(pod.Annotations, "config.app/branch", "default")
                 appProjectID := getAnnotationOrDefault(pod.Annotations, "config.app/project-id", "123456")
