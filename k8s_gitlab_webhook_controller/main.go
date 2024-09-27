@@ -75,7 +75,7 @@ func watchPods(clientset *kubernetes.Clientset) {
                         if newImageTag != oldImageTag {
                             // Vérifie que la combinaison image + tag n'a pas déjà été traitée
                             if !isImageTagProcessed(newImageTag) {
-                                fmt.Printf("Pod %s updated with new image %s in environment %s\n", pod.Name, newImage, acmeEnv)
+                                fmt.Printf("Pod %s updated with new image %s in environment %s\n", pod.Name, newImage, appEnv)
                                 imageTags = append(imageTags, newImageTag)
 
                                 // Marquer cette image + tag comme traitée
