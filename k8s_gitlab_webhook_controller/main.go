@@ -9,6 +9,7 @@ import (
     "bytes"
     "context"
     "sync"
+    "time"
     "k8s.io/client-go/kubernetes"
     "k8s.io/client-go/rest"
     "k8s.io/apimachinery/pkg/watch"
@@ -153,7 +154,7 @@ func processPodImages(pod *v1.Pod) {
         appProjectID := getAnnotationOrDefault(pod.Annotations, "config.app/project-id", "123456")
         authToken := os.Getenv("AUTH_TOKEN")
         imageTags := []string{}
-        
+
         for _, container := range pod.Spec.Containers {
             newImage := container.Image
             oldImage := pod.Status.ContainerStatuses[0].Image
