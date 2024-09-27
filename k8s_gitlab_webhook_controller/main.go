@@ -249,10 +249,10 @@ func markImageTagAsProcessed(imageTag string) {
 }
 
 // Function to trigger the webhook with dynamic parameters
-func triggerWebhook(webhookUrl string, webhookParams []string) {
+func triggerWebhook(webhookUrl string, webhookPayload map[string]string) {
 
     // Convertir les paramètres en JSON
-    payloadBytes, err := json.Marshal(webhookParams)
+    payloadBytes, err := json.Marshal(webhookPayload)
     if err != nil {
         fmt.Printf("Error marshalling payload to JSON: %v\n", err)
         return
@@ -345,11 +345,11 @@ func watchDeployments(clientset *kubernetes.Clientset) {
                                 // Extract the tag from the image
                                 imageTag := extractImageTag(newImage)
                                 // Trigger the webhook
-                                webhookParams := []string{
-                                    fmt.Sprintf("ref=%s", appBranch),
-                                    fmt.Sprintf("token=%s", authToken),
-                                    fmt.Sprintf("variables[TRIGGERED_ENV]=%s", appEnv),
-                                    fmt.Sprintf("variables[IMAGE_TAG]=%s", imageTag),
+                                webhookPayload := map[string]string{
+                                    "ref": appBranch
+                                    "token": authToken,
+                                    "variables[TRIGGERED_ENV]": appEnv,
+                                    "variables[IMAGE_TAG]": imageTag,
                                 }
                                 envUrl := GetEnvOrDefault("URL", "https://gitlab.com/api/v4")
                                 envUrlPath := GetEnvOrDefault("URL_PATH", "/projects/PROJECT_ID/trigger/pipeline")
@@ -358,7 +358,7 @@ func watchDeployments(clientset *kubernetes.Clientset) {
                                 fmt.Println("PROJECT_ID:", appProjectID)
                                 webhookUrl := strings.Replace(fmt.Sprintf(`%s%s`, envUrl, envUrlPath), "PROJECT_ID", appProjectID, -1)
                                 fmt.Println("webhookUrl:", webhookUrl)
-                                triggerWebhook(webhookUrl, webhookParams)
+                                triggerWebhook(webhookUrl, webhookPayload)
                                 
                             }
                         }
