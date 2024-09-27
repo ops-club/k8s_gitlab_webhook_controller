@@ -65,12 +65,31 @@ func watchPods(clientset *kubernetes.Clientset) {
 
                 // Check for image updates and collect tags
                 for _, container := range pod.Spec.Containers {
-                    newImage := container.Image
-                    oldImage := pod.Status.ContainerStatuses[0].Image
+                    // Vérifie si le pod a des statuts de conteneurs
+                    if len(pod.Status.ContainerStatuses) > 0 {
+                        for _, container := range pod.Spec.Containers {
+                            // newImage := /container.Image
+                            oldImage := pod.Status.ContainerStatuses[0].Image
 
-                    // Create a unique identifier for the image + tag combination
-                    newImageTag := createImageTagKey(newImage)
-                    oldImageTag := createImageTagKey(oldImage)
+                            newImageTag := createImageTagKey(newImage)
+                            oldImageTag := createImageTagKey(oldImage)
+
+                            if newImageTag != oldImageTag {
+                                // Vérifie que la combinaison image + tag n'a pas déjà été traitée
+                                if !isImageTagProcessed(newImageTag) {
+                                    fmt.Printf("Pod %s updated with new image %s in environment %s\n", pod.Name, newImage, acmeEnv)
+                                    imageTags = append(imageTags, newImageTag)
+
+                                    // Marquer cette image + tag comme traitée
+                                    markImageTagAsProcessed(newImageTag)
+                                }
+                            }
+                        }
+                    } else {
+                        fmt.Printf("No container status available for pod %s\n", pod.Name)
+                    }
+
+                   
 
                     if newImageTag != oldImageTag {
                         // Ensure we only send one webhook per image+tag combination
