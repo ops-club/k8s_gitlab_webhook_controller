@@ -146,6 +146,15 @@ func isPodHealthy(pod *v1.Pod) bool {
     return false
 }
 
+// Function to extract the tag from the image name (after the last colon `:`)
+func extractImageTag(image string) string {
+    parts := strings.Split(image, ":")
+    if len(parts) > 1 {
+        return parts[1] // Returns the tag part
+    }
+    return "latest" // Default tag if no tag is provided (assuming "latest")
+}
+
 // Exemple de traitement des images des pods
 func processPodImages(pod *v1.Pod) {
     if len(pod.Status.ContainerStatuses) > 0 {
@@ -189,6 +198,7 @@ func processPodImages(pod *v1.Pod) {
                 fmt.Println("webhookUrlPath:", envUrlPath)
                 fmt.Println("PROJECT_ID:", appProjectID)
                 webhookUrl := strings.Replace(fmt.Sprintf(`%s%s`, envUrl, envUrlPath), "PROJECT_ID", appProjectID, -1)
+                fmt.Println("webhookUrl:", webhookUrl)
                 triggerWebhook(webhookUrl, webhookParams)
             }
         }
@@ -260,12 +270,27 @@ func triggerWebhook(webhookUrl string, webhookParams []string) {
     // Envoyer la requête HTTP
     client := &http.Client{}
     resp, err := client.Do(req)
+    
     if err != nil {
         fmt.Printf("Error triggering webhook: %v\n", err)
-    } else {
-        defer resp.Body.Close()
-        fmt.Printf("Webhook triggered with parameters: %v\n", webhookParams)
+        return
     }
+    defer resp.Body.Close()
+    
+    // Read the response body
+    bodyBytes, err := io.ReadAll(resp.Body)
+    if err != nil {
+        fmt.Printf("Error reading response body: %v\n", err)
+        return
+    }
+    
+    // Convert the body to a string
+    bodyString := string(bodyBytes)
+    
+    // Print the response status code and the body of the response
+    fmt.Printf("Webhook triggered with parameters: %v\n", webhookParams)
+    fmt.Printf("Response Status Code: %d\n", resp.StatusCode)
+    fmt.Printf("Response Body: %s\n", bodyString)
 }
 
 // Function to watch deployment changes
@@ -316,12 +341,14 @@ func watchDeployments(clientset *kubernetes.Clientset) {
                                 appProjectID := getAnnotationOrDefault(deployment.Annotations, "config.app/project-id", "123456")
                                 authToken := os.Getenv("AUTH_TOKEN")
                                 
+                                // Extract the tag from the image
+                                imageTag := extractImageTag(newImage)
                                 // Trigger the webhook
                                 webhookParams := []string{
                                     fmt.Sprintf("ref=%s", appBranch),
                                     fmt.Sprintf("token=%s", authToken),
                                     fmt.Sprintf("variables[TRIGGERED_ENV]=%s", appEnv),
-                                    fmt.Sprintf("variables[IMAGE_TAG]=%s", newImageTag),
+                                    fmt.Sprintf("variables[IMAGE_TAG]=%s", imageTag),
                                 }
                                 envUrl := GetEnvOrDefault("URL", "https://gitlab.com/api/v4")
                                 envUrlPath := GetEnvOrDefault("URL_PATH", "/projects/PROJECT_ID/trigger/pipeline")
@@ -329,6 +356,7 @@ func watchDeployments(clientset *kubernetes.Clientset) {
                                 fmt.Println("webhookUrlPath:", envUrlPath)
                                 fmt.Println("PROJECT_ID:", appProjectID)
                                 webhookUrl := strings.Replace(fmt.Sprintf(`%s%s`, envUrl, envUrlPath), "PROJECT_ID", appProjectID, -1)
+                                fmt.Println("webhookUrl:", webhookUrl)
                                 triggerWebhook(webhookUrl, webhookParams)
                                 
                             }
