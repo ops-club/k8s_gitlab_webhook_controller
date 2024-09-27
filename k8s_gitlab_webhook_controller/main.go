@@ -35,7 +35,7 @@ func main() {
     }
 
     // Watch for changes in pods across all namespaces
-    watchPods(clientset)
+    watchDeployments(clientset)
 }
 
 func watchPods(clientset *kubernetes.Clientset) {
@@ -67,7 +67,7 @@ func watchPods(clientset *kubernetes.Clientset) {
         case watch.Modified:
             fmt.Printf("Pod %s modified in namespace %s\n", pod.Name, pod.Namespace)
             
-            if shouldTriggerUpdate(pod) {
+            if shouldPodTriggerUpdate(pod) {
                 // Vérification avec timeout de 70 secondes pour s'assurer que le pod est Healthy
                 if isPodHealthyWithTimeout(clientset, pod.Namespace, pod.Name, 70*time.Second) {
                     fmt.Printf("Pod %s is healthy in namespace %s\n", pod.Name, pod.Namespace)
@@ -206,9 +206,16 @@ func createImageTagKey(image string) string {
 }
 
 // Function to check if the update should trigger based on custom annotation
-func shouldTriggerUpdate(pod *v1.Pod) bool {
+func shouldPodTriggerUpdate(pod *v1.Pod) bool {
     fmt.Println("shouldTriggerUpdate:", pod.Annotations["image.update.trigger"])
     if trigger, exists := pod.Annotations["image.update.trigger"]; exists && trigger == "true" {
+        return true
+    }
+    return false
+}
+func shouldDeploymentTriggerUpdate(deployment *v1.Deployment) bool {
+    fmt.Println("shouldTriggerUpdate:", deployment.Annotations["image.update.trigger"])
+    if trigger, exists := deployment.Annotations["image.update.trigger"]; exists && trigger == "true" {
         return true
     }
     return false
@@ -257,5 +264,81 @@ func triggerWebhook(webhookUrl string, webhookParams []string) {
     } else {
         defer resp.Body.Close()
         fmt.Printf("Webhook triggered with parameters: %v\n", webhookParams)
+    }
+}
+
+// Function to watch deployment changes
+func watchDeployments(clientset *kubernetes.Clientset) {
+    watchInterface, err := clientset.AppsV1().Deployments("").Watch(context.TODO(), metav1.ListOptions{})
+    if err != nil {
+        panic(err.Error())
+    }
+
+    fmt.Println("Watching for deployment events...")
+
+    for event := range watchInterface.ResultChan() {
+        // Debug print to display the event received
+        fmt.Printf("Received event: %v\n", event)
+
+        deployment, ok := event.Object.(*appsv1.Deployment)
+        if !ok {
+            fmt.Println("Event is not a Deployment object")
+            continue
+        }
+
+        fmt.Printf("Deployment received: %s in namespace %s\n", deployment.Name, deployment.Namespace)
+
+        switch event.Type {
+        case watch.Modified:
+            fmt.Printf("Deployment %s modified in namespace %s\n", deployment.Name, deployment.Namespace)
+            if shouldDeploymentTriggerUpdate(deployment) {
+                // Check for image update in the first container
+                if len(deployment.Spec.Template.Spec.Containers) > 0 {
+                    newImage := deployment.Spec.Template.Spec.Containers[0].Image
+
+                    // Retrieve old image from container statuses if available
+                    if len(deployment.Status.Conditions) > 0 {
+                        oldImage := deployment.Status.Conditions[0].Message // Assuming the old image is tracked in conditions (depends on actual usage)
+
+                        newImageTag := createImageTagKey(newImage)
+                        oldImageTag := createImageTagKey(oldImage)
+
+                        if newImageTag != oldImageTag {
+                            // Check if this image + tag combination has already been processed
+                            if !isImageTagProcessed(newImageTag) {
+                                fmt.Printf("Deployment %s updated with new image %s in namespace %s\n", deployment.Name, newImage, deployment.Namespace)
+
+                                // Mark this image + tag combination as processed
+                                markImageTagAsProcessed(newImageTag)
+                                appEnv := getAnnotationOrDefault(deployment.Annotations, "config.app/env", "default")
+                                appBranch := getAnnotationOrDefault(deployment.Annotations, "config.app/branch", "default")
+                                appProjectID := getAnnotationOrDefault(deployment.Annotations, "config.app/project-id", "123456")
+                                authToken := os.Getenv("AUTH_TOKEN")
+                                
+                                // Trigger the webhook
+                                webhookParams := []string{
+                                    fmt.Sprintf("ref=%s", appBranch),
+                                    fmt.Sprintf("token=%s", authToken),
+                                    fmt.Sprintf("variables[TRIGGERED_ENV]=%s", appEnv),
+                                    fmt.Sprintf("variables[IMAGE_TAG]=%s", newImageTag),
+                                }
+                                envUrl := GetEnvOrDefault("URL", "https://gitlab.com/api/v4")
+                                envUrlPath := GetEnvOrDefault("URL_PATH", "/projects/PROJECT_ID/trigger/pipeline")
+                                fmt.Println("webhookUrl:", envUrl)
+                                fmt.Println("webhookUrlPath:", envUrlPath)
+                                fmt.Println("PROJECT_ID:", appProjectID)
+                                webhookUrl := strings.Replace(fmt.Sprintf(`%s%s`, envUrl, envUrlPath), "PROJECT_ID", appProjectID, -1)
+                                triggerWebhook(webhookUrl, webhookParams)
+                                
+                            }
+                        }
+                    } else {
+                        fmt.Printf("No old image information available for deployment %s\n", deployment.Name)
+                    }
+                }
+            }
+        default:
+            fmt.Printf("Unhandled event type: %v\n", event.Type)
+        }
     }
 }
