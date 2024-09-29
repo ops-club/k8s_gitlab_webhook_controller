@@ -30,7 +30,7 @@ ARG TARGETOS
 ARG TARGETARCH
 
 # Build the Go application targeting the desired platform
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o k8s-custom-controller main.go
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o k8s-custom-controller
 
 # Step 2: Use a minimal base image for the final container
 FROM --platform=${BUILDPLATFORM} alpine:3.20
