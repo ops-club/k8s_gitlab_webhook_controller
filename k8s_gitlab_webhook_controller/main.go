@@ -74,42 +74,42 @@ func watchPods(clientset *kubernetes.Clientset) {
 		panic(err.Error())
 	}
 
-	logrus.Info("Watching for pod events...")
+	logrus.Infof("Watching for pod events...")
 
 	for event := range watchInterface.ResultChan() {
 		// Affiche l'événement complet pour debug
-		logrus.Debug("Received event: %v\n", event)
+		logrus.Debugf("Received event: %v", event)
 
 		pod, ok := event.Object.(*v1.Pod)
 		if !ok {
-			logrus.Debug("Event is not a Pod object")
+			logrus.Debugf("Event is not a Pod object")
 			continue
 		}
-		logrus.Debug("event.Type:", event.Type)
+		logrus.Debugf("event.Type:", event.Type)
 		// Affiche le pod reçu pour debug
-		logrus.Debug("Pod received: %s in namespace %s\n", pod.Name, pod.Namespace)
+		logrus.Debugf("Pod received: %s in namespace %s", pod.Name, pod.Namespace)
 
 		switch event.Type {
 		case watch.Added:
-			logrus.Debug("Pod %s added in namespace %s\n", pod.Name, pod.Namespace)
+			logrus.Debugf("Pod %s added in namespace %s", pod.Name, pod.Namespace)
 
 		case watch.Modified:
-			logrus.Debug("Pod %s modified in namespace %s\n", pod.Name, pod.Namespace)
+			logrus.Debugf("Pod %s modified in namespace %s", pod.Name, pod.Namespace)
 
 			if shouldPodTriggerUpdate(pod) {
 				// Vérification avec timeout de 70 secondes pour s'assurer que le pod est Healthy
 				if isPodHealthyWithTimeout(clientset, pod.Namespace, pod.Name, 70*time.Second) {
-					logrus.Debug("Pod %s is healthy in namespace %s\n", pod.Name, pod.Namespace)
+					logrus.Debugf("Pod %s is healthy in namespace %s", pod.Name, pod.Namespace)
 					processPodImages(pod)
 				} else {
-					logrus.Debug("Pod %s is not healthy after 70 seconds in namespace %s\n", pod.Name, pod.Namespace)
+					logrus.Debugf("Pod %s is not healthy after 70 seconds in namespace %s", pod.Name, pod.Namespace)
 				}
 			}
 
 		case watch.Deleted:
-			logrus.Debug("Pod %s deleted in namespace %s\n", pod.Name, pod.Namespace)
+			logrus.Debugf("Pod %s deleted in namespace %s", pod.Name, pod.Namespace)
 		default:
-			logrus.Debug("Unknown event type: %v\n", event.Type)
+			logrus.Debugf("Unknown event type: %v", event.Type)
 
 		}
 	}
@@ -124,9 +124,9 @@ func GetEnvOrDefault(key string, defaultValue string) string {
 }
 
 func getAnnotationOrDefault(annotations map[string]string, key string, defaultValue string) string {
-	logrus.Debug("Try to get annotations: %s (default: %s)\n", key, defaultValue)
+	logrus.Debugf("Try to get annotations: %s (default: %s)", key, defaultValue)
 	if value, exists := annotations[key]; exists {
-		logrus.Debug("Value for annotations: %s = %s)\n", key, value)
+		logrus.Debugf("Value for annotations: %s = %s)", key, value)
 		return value
 	}
 	return defaultValue
@@ -147,7 +147,7 @@ func isPodHealthyWithTimeout(clientset *kubernetes.Clientset, namespace, podName
 			// Vérification régulière du statut Healthy
 			pod, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 			if err != nil {
-				logrus.Error("Error retrieving pod %s: %v\n", podName, err)
+				logrus.Errorf("Error retrieving pod %s: %v", podName, err)
 				continue
 			}
 
@@ -156,7 +156,7 @@ func isPodHealthyWithTimeout(clientset *kubernetes.Clientset, namespace, podName
 				return true
 			}
 
-			logrus.Debug("Waiting for pod %s to be healthy...\n", podName)
+			logrus.Debugf("Waiting for pod %s to be healthy...", podName)
 		}
 	}
 }
@@ -194,7 +194,7 @@ func processPodImages(pod *v1.Pod) {
 			newImage := container.Image
 			oldImage := pod.Status.ContainerStatuses[0].Image
 
-			logrus.Info("Processing image: %s (new) vs %s (old) in pod %s\n", newImage, oldImage, pod.Name)
+			logrus.Infof("Processing image: %s (new) vs %s (old) in pod %s", newImage, oldImage, pod.Name)
 
 			newImageTag := createImageTagKey(newImage)
 			oldImageTag := createImageTagKey(oldImage)
@@ -202,7 +202,7 @@ func processPodImages(pod *v1.Pod) {
 			if newImageTag != oldImageTag {
 				// Vérifie que la combinaison image + tag n'a pas déjà été traitée
 				if !isImageTagProcessed(newImageTag) {
-					logrus.Info("Pod %s updated with new image %s in environment %s\n", pod.Name, newImage, appEnv)
+					logrus.Infof("Pod %s updated with new image %s in environment %s", pod.Name, newImage, appEnv)
 					imageTags = append(imageTags, newImageTag)
 
 					// Marquer cette image + tag comme traitée
@@ -221,16 +221,16 @@ func processPodImages(pod *v1.Pod) {
 
 				envUrl := GetEnvOrDefault("URL", "https://gitlab.com/api/v4")
 				envUrlPath := GetEnvOrDefault("URL_PATH", "/projects/PROJECT_ID/trigger/pipeline")
-				logrus.Debug("webhookUrl:", envUrl)
-				logrus.Debug("webhookUrlPath:", envUrlPath)
-				logrus.Debug("PROJECT_ID:", appProjectID)
+				logrus.Debugf("webhookUrl:", envUrl)
+				logrus.Debugf("webhookUrlPath:", envUrlPath)
+				logrus.Debugf("PROJECT_ID:", appProjectID)
 				webhookUrl := strings.Replace(fmt.Sprintf(`%s%s`, envUrl, envUrlPath), "PROJECT_ID", appProjectID, -1)
-				logrus.Debug("webhookUrl:", webhookUrl)
+				logrus.Debugf("webhookUrl:", webhookUrl)
 				triggerWebhook(webhookUrl, webhookPayload)
 			}
 		}
 	} else {
-		logrus.Info("No container status available for pod %s\n", pod.Name)
+		logrus.Infof("No container status available for pod %s", pod.Name)
 	}
 }
 
@@ -245,14 +245,14 @@ func createImageTagKey(image string) string {
 
 // Function to check if the update should trigger based on custom annotation
 func shouldPodTriggerUpdate(pod *v1.Pod) bool {
-	logrus.Debug("shouldTriggerUpdate:", pod.Annotations["image.update.trigger"])
+	logrus.Debugf("shouldTriggerUpdate:", pod.Annotations["image.update.trigger"])
 	if trigger, exists := pod.Annotations["image.update.trigger"]; exists && trigger == "true" {
 		return true
 	}
 	return false
 }
 func shouldDeploymentTriggerUpdate(deployment *appsv1.Deployment) bool {
-	logrus.Debug("shouldTriggerUpdate:", deployment.Annotations["image.update.trigger"])
+	logrus.Debugf("shouldTriggerUpdate:", deployment.Annotations["image.update.trigger"])
 	if trigger, exists := deployment.Annotations["image.update.trigger"]; exists && trigger == "true" {
 		return true
 	}
@@ -280,14 +280,14 @@ func triggerWebhook(webhookUrl string, webhookPayload map[string]string) {
 	// Convertir les paramètres en JSON
 	payloadBytes, err := json.Marshal(webhookPayload)
 	if err != nil {
-		logrus.Error("Error marshalling payload to JSON: %v\n", err)
+		logrus.Errorf("Error marshalling payload to JSON: %v", err)
 		return
 	}
 
 	// Créer la requête POST avec l'encodage JSON
 	req, err := http.NewRequest("POST", webhookUrl, bytes.NewBuffer(payloadBytes))
 	if err != nil {
-		logrus.Error("Error creating webhook request: %v\n", err)
+		logrus.Errorf("Error creating webhook request: %v", err)
 		return
 	}
 
@@ -299,7 +299,7 @@ func triggerWebhook(webhookUrl string, webhookPayload map[string]string) {
 	resp, err := client.Do(req)
 
 	if err != nil {
-		logrus.Error("Error triggering webhook: %v\n", err)
+		logrus.Errorf("Error triggering webhook: %v", err)
 		return
 	}
 	defer resp.Body.Close()
@@ -307,7 +307,7 @@ func triggerWebhook(webhookUrl string, webhookPayload map[string]string) {
 	// Read the response body
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		logrus.Error("Error reading response body: %v\n", err)
+		logrus.Errorf("Error reading response body: %v", err)
 		return
 	}
 
@@ -315,9 +315,9 @@ func triggerWebhook(webhookUrl string, webhookPayload map[string]string) {
 	bodyString := string(bodyBytes)
 
 	// Print the response status code and the body of the response
-	logrus.Debug("Webhook triggered with parameters: %v\n", webhookPayload)
-	logrus.Debug("Response Status Code: %d\n", resp.StatusCode)
-	logrus.Debug("Response Body: %s\n", bodyString)
+	logrus.Debugf("Webhook triggered with parameters: %v", webhookPayload)
+	logrus.Debugf("Response Status Code: %d", resp.StatusCode)
+	logrus.Debugf("Response Body: %s", bodyString)
 }
 
 // Function to watch deployment changes
@@ -327,23 +327,23 @@ func watchDeployments(clientset *kubernetes.Clientset) {
 		panic(err.Error())
 	}
 
-	logrus.Info("Watching for deployment events...")
+	logrus.Infof("Watching for deployment events...")
 
 	for event := range watchInterface.ResultChan() {
 		// Debug print to display the event received
-		logrus.Debug("Received event: %v\n", event)
+		logrus.Debugf("Received event: %v", event)
 
 		deployment, ok := event.Object.(*appsv1.Deployment)
 		if !ok {
-			logrus.Debug("Event is not a Deployment object")
+			logrus.Debugf("Event is not a Deployment object")
 			continue
 		}
 
-		logrus.Info("Deployment received: %s in namespace %s\n", deployment.Name, deployment.Namespace)
+		logrus.Infof("Deployment received: %s in namespace %s", deployment.Name, deployment.Namespace)
 
 		switch event.Type {
 		case watch.Modified:
-			logrus.Info("Deployment %s modified in namespace %s\n", deployment.Name, deployment.Namespace)
+			logrus.Infof("Deployment %s modified in namespace %s", deployment.Name, deployment.Namespace)
 			if shouldDeploymentTriggerUpdate(deployment) {
 				// Check for image update in the first container
 				if len(deployment.Spec.Template.Spec.Containers) > 0 {
@@ -359,7 +359,7 @@ func watchDeployments(clientset *kubernetes.Clientset) {
 						if newImageTag != oldImageTag {
 							// Check if this image + tag combination has already been processed
 							if !isImageTagProcessed(newImageTag) {
-								logrus.Debug("Deployment %s updated with new image %s in namespace %s\n", deployment.Name, newImage, deployment.Namespace)
+								logrus.Debugf("Deployment %s updated with new image %s in namespace %s", deployment.Name, newImage, deployment.Namespace)
 
 								// Mark this image + tag combination as processed
 								markImageTagAsProcessed(newImageTag)
@@ -379,22 +379,22 @@ func watchDeployments(clientset *kubernetes.Clientset) {
 								}
 								envUrl := GetEnvOrDefault("URL", "https://gitlab.com/api/v4")
 								envUrlPath := GetEnvOrDefault("URL_PATH", "/projects/PROJECT_ID/trigger/pipeline")
-								logrus.Debug("webhookUrl:", envUrl)
-								logrus.Debug("webhookUrlPath:", envUrlPath)
-								logrus.Debug("PROJECT_ID:", appProjectID)
+								logrus.Debugf("webhookUrl:", envUrl)
+								logrus.Debugf("webhookUrlPath:", envUrlPath)
+								logrus.Debugf("PROJECT_ID:", appProjectID)
 								webhookUrl := strings.Replace(fmt.Sprintf(`%s%s`, envUrl, envUrlPath), "PROJECT_ID", appProjectID, -1)
-								logrus.Debug("webhookUrl:", webhookUrl)
+								logrus.Debugf("webhookUrl:", webhookUrl)
 								triggerWebhook(webhookUrl, webhookPayload)
 
 							}
 						}
 					} else {
-						logrus.Error("No old image information available for deployment %s\n", deployment.Name)
+						logrus.Errorf("No old image information available for deployment %s", deployment.Name)
 					}
 				}
 			}
 		default:
-			logrus.Info("Unhandled event type: %v\n", event.Type)
+			logrus.Infof("Unhandled event type: %v", event.Type)
 		}
 	}
 }
