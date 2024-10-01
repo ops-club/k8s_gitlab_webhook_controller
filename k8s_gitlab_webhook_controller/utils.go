@@ -1,11 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"io"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -125,51 +121,4 @@ func markImageTagAsProcessed(imageTag string) {
 	mutex.Lock()
 	defer mutex.Unlock()
 	processedTags[imageTag] = true
-}
-
-// Function to trigger the webhook with dynamic parameters
-func triggerWebhook(webhookUrl string, webhookPayload map[string]string) {
-
-	logrus.Debugf("webhookUrl:", webhookUrl)
-	// Convertir les paramètres en JSON
-	payloadBytes, err := json.Marshal(webhookPayload)
-	if err != nil {
-		logrus.Errorf("Error marshalling payload to JSON: %v", err)
-		return
-	}
-
-	// Créer la requête POST avec l'encodage JSON
-	req, err := http.NewRequest("POST", webhookUrl, bytes.NewBuffer(payloadBytes))
-	if err != nil {
-		logrus.Errorf("Error creating webhook request: %v", err)
-		return
-	}
-
-	// Ajouter les en-têtes nécessaires
-	req.Header.Set("Content-Type", "application/json")
-
-	// Envoyer la requête HTTP
-	client := &http.Client{}
-	resp, err := client.Do(req)
-
-	if err != nil {
-		logrus.Errorf("Error triggering webhook: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	// Read the response body
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		logrus.Errorf("Error reading response body: %v", err)
-		return
-	}
-
-	// Convert the body to a string
-	bodyString := string(bodyBytes)
-
-	// Print the response status code and the body of the response
-	logrus.Debugf("Webhook triggered with parameters: %v", webhookPayload)
-	logrus.Debugf("Response Status Code: %d", resp.StatusCode)
-	logrus.Debugf("Response Body: %s", bodyString)
 }
